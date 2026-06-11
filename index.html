@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>悠閒農場 🥔</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="stat" title="金幣">💰 <span id="coins">0</span></div>
+    <div class="stat stamina" title="體力">
+      ⚡ <div class="bar"><div id="staminaFill" class="fill"></div></div>
+      <span id="staminaText">100</span>
+    </div>
+    <div class="stat" title="背包(作物+食物)">🎒 <span id="capText">0/20</span></div>
+    <div id="buffBar"></div>
+  </header>
+
+  <nav id="tabs">
+    <button class="tab active" data-tab="farm">🌱 農場</button>
+    <button class="tab" data-tab="house">🏠 房子</button>
+    <button class="tab" data-tab="shop">🛒 商人</button>
+    <button class="tab" data-tab="craft">🔨 製作</button>
+    <button class="tab" data-tab="coop">👥 聯機</button>
+  </nav>
+
+  <main>
+    <section id="tab-farm" class="panel active">
+      <div id="farmActions"></div>
+      <div id="farmGrid"></div>
+    </section>
+
+    <section id="tab-house" class="panel">
+      <div class="house-room">
+        <h2>🍳 廚房</h2>
+        <p class="hint">用採收的作物做飯,吃下後獲得各種效果!</p>
+        <div id="kitchenRecipes"></div>
+        <h3>🍱 我的食物</h3>
+        <div id="foodList"></div>
+      </div>
+      <div class="house-room">
+        <h2>🛏️ 臥室</h2>
+        <p class="hint">睡覺可以恢復體力。睡著後還能選擇「開始掛機」——睡得越久,植物長得越快,但小心植物會腐爛!</p>
+        <button id="bedBtn" class="big-btn">😴 上床睡覺</button>
+      </div>
+    </section>
+
+    <section id="tab-shop" class="panel">
+      <h2>🧑‍🌾 旅行商人</h2>
+      <div class="shop-section">
+        <h3>📤 出售作物</h3>
+        <div id="sellList"></div>
+      </div>
+      <div class="shop-section">
+        <h3>📥 購買種子</h3>
+        <div id="seedShop"></div>
+      </div>
+    </section>
+
+    <section id="tab-craft" class="panel">
+      <h2>🔨 工作台</h2>
+      <p class="hint">製作更好的物品,讓種田更輕鬆!</p>
+      <div id="craftList"></div>
+    </section>
+
+    <section id="tab-coop" class="panel">
+      <h2>👥 好友聯機</h2>
+      <p class="hint">最多 4 人一起種田!農地、金幣、倉庫全部共享。掛機加速以房主為準。</p>
+      <div id="coopPanel">
+        <div class="coop-row">
+          <input id="playerName" maxlength="12" placeholder="你的暱稱">
+        </div>
+        <div class="coop-row">
+          <button id="createRoomBtn" class="big-btn">🏡 建立房間</button>
+        </div>
+        <div class="coop-row">
+          <input id="roomCodeInput" maxlength="4" placeholder="輸入房號 (4碼)">
+          <button id="joinRoomBtn" class="big-btn">🔑 加入房間</button>
+        </div>
+      </div>
+      <div id="coopStatus" class="hidden">
+        <div class="room-code">房號:<b id="roomCodeShow"></b></div>
+        <div id="playerListBox"></div>
+        <button id="leaveRoomBtn" class="big-btn danger">🚪 離開房間</button>
+      </div>
+    </section>
+  </main>
+
+  <div id="toasts"></div>
+
+  <!-- 選種子彈窗 -->
+  <div id="seedPicker" class="overlay hidden">
+    <div class="dialog">
+      <h3>選擇要種的種子</h3>
+      <div id="seedPickerList"></div>
+      <button class="big-btn ghost" onclick="closeSeedPicker()">取消</button>
+    </div>
+  </div>
+
+  <!-- 睡覺畫面 -->
+  <div id="sleepOverlay" class="overlay night hidden">
+    <div class="dialog sleep-dialog">
+      <div id="sleepEmoji">😴</div>
+      <h2 id="sleepTitle">睡覺中…</h2>
+      <div id="sleepInfo"></div>
+      <div id="sleepWarnings"></div>
+      <div class="sleep-buttons">
+        <button id="wakeBtn" class="big-btn">🌅 起床</button>
+        <button id="idleBtn" class="big-btn primary">⏩ 開始掛機</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="multiplayer.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,161 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f2e8d5;
+  --panel: #fffaf0;
+  --soil: #8d6748;
+  --soil-dark: #6b4d33;
+  --green: #5a9e4b;
+  --green-dark: #41773a;
+  --gold: #e0a72e;
+  --red: #d9534f;
+  --text: #4a3a2a;
+  --shadow: 0 2px 8px rgba(90, 60, 20, .18);
+}
+html, body { height: 100%; }
+body {
+  font-family: "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  background: linear-gradient(#cfe8c0, var(--bg) 240px);
+  color: var(--text);
+}
+#app { max-width: 880px; margin: 0 auto; padding: 12px; }
+
+/* ---- 頂欄 ---- */
+#topbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
+  background: var(--panel); border-radius: 14px; padding: 10px 16px;
+  box-shadow: var(--shadow); margin-bottom: 10px; font-weight: 700;
+}
+.stat { display: flex; align-items: center; gap: 6px; }
+.stamina .bar { width: 110px; height: 12px; background: #e4d9c3; border-radius: 6px; overflow: hidden; }
+.stamina .fill { height: 100%; width: 100%; background: linear-gradient(90deg, #f5c542, #7ec850); transition: width .3s; }
+#buffBar { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+.buff-chip {
+  background: #eaf6e2; border: 1px solid #b5d8a5; border-radius: 999px;
+  padding: 2px 10px; font-size: 13px; font-weight: 600;
+}
+
+/* ---- 分頁 ---- */
+#tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+.tab {
+  flex: 1; min-width: 90px; padding: 10px 6px; font-size: 15px; font-weight: 700;
+  border: none; border-radius: 12px; background: #e7dcc4; color: var(--text);
+  cursor: pointer; transition: background .15s;
+}
+.tab:hover { background: #ddd0b2; }
+.tab.active { background: var(--green); color: #fff; }
+.panel { display: none; background: var(--panel); border-radius: 14px; padding: 16px; box-shadow: var(--shadow); }
+.panel.active { display: block; }
+.panel h2 { margin-bottom: 6px; }
+.panel h3 { margin: 14px 0 8px; }
+.hint { font-size: 13.5px; color: #8a7a62; margin-bottom: 12px; }
+
+/* ---- 農場 ---- */
+#farmActions { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+#farmGrid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px;
+}
+.plot {
+  position: relative; border-radius: 12px; padding: 12px 8px 10px; text-align: center;
+  background: linear-gradient(#a97c50, var(--soil)); color: #fff;
+  cursor: pointer; min-height: 128px; user-select: none;
+  border: 2px solid var(--soil-dark);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  transition: transform .1s;
+}
+.plot:hover { transform: translateY(-2px); }
+.plot .emoji { font-size: 38px; line-height: 1.1; filter: drop-shadow(0 2px 2px rgba(0,0,0,.25)); }
+.plot.locked { background: #b9ad97; border-color: #948871; color: #5d543f; }
+.plot.empty .emoji { opacity: .85; }
+.plot.mature { border-color: var(--gold); box-shadow: 0 0 12px rgba(224, 167, 46, .7); }
+.plot.mature .emoji { animation: bounce 1s infinite; }
+.plot.rotten { filter: saturate(.4); border-color: #555; }
+@keyframes bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+.plot .label { font-size: 13px; font-weight: 700; }
+.plot .sub { font-size: 12px; opacity: .9; }
+.plot .sub.danger { color: #ffd2d0; font-weight: 700; }
+.plot .pbar { width: 86%; height: 8px; background: rgba(0,0,0,.3); border-radius: 4px; overflow: hidden; }
+.plot .pbar .fill { height: 100%; background: linear-gradient(90deg, #b8e986, #5a9e4b); transition: width .4s linear; }
+
+/* ---- 通用列 ---- */
+.row {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  background: #f7f0df; border-radius: 10px; margin-bottom: 8px; flex-wrap: wrap;
+}
+.row .icon { font-size: 26px; }
+.row .info { flex: 1; min-width: 140px; }
+.row .info b { display: block; }
+.row .info small { color: #8a7a62; }
+.row button { white-space: nowrap; }
+
+button.act, .big-btn {
+  border: none; border-radius: 10px; padding: 8px 14px; font-size: 14px; font-weight: 700;
+  background: var(--green); color: #fff; cursor: pointer; font-family: inherit;
+}
+button.act:hover, .big-btn:hover { background: var(--green-dark); }
+button.act:disabled, .big-btn:disabled { background: #c0b8a6; cursor: not-allowed; }
+button.gold { background: var(--gold); }
+button.gold:hover { background: #c08f1f; }
+.big-btn { padding: 12px 20px; font-size: 16px; }
+.big-btn.danger { background: var(--red); }
+.big-btn.danger:hover { background: #b94440; }
+.big-btn.ghost { background: #d8ccb2; color: var(--text); }
+.big-btn.primary { background: #5b7fd9; }
+.big-btn.primary:hover { background: #4a6bc0; }
+
+.house-room { margin-bottom: 22px; }
+.shop-section { margin-bottom: 18px; }
+
+/* ---- 聯機 ---- */
+.coop-row { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+#coopPanel input, #playerName, #roomCodeInput {
+  padding: 10px 12px; border-radius: 10px; border: 2px solid #d8ccb2;
+  font-size: 16px; font-family: inherit; background: #fff;
+}
+#roomCodeInput { width: 150px; text-transform: uppercase; letter-spacing: 3px; }
+.room-code { font-size: 20px; margin-bottom: 10px; }
+.room-code b { color: var(--green-dark); letter-spacing: 4px; font-size: 26px; }
+.player-chip {
+  display: inline-flex; align-items: center; gap: 6px; margin: 0 8px 8px 0;
+  background: #eaf6e2; border: 1px solid #b5d8a5; border-radius: 999px; padding: 6px 14px; font-weight: 700;
+}
+#leaveRoomBtn { margin-top: 8px; }
+
+/* ---- 彈窗 / 睡覺 ---- */
+.overlay {
+  position: fixed; inset: 0; background: rgba(40, 30, 15, .55);
+  display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px;
+}
+.overlay.night { background: linear-gradient(#0b1030ee, #1a1340ee); }
+.dialog {
+  background: var(--panel); border-radius: 16px; padding: 22px; max-width: 420px; width: 100%;
+  box-shadow: 0 8px 30px rgba(0,0,0,.35); text-align: center;
+}
+.dialog h3 { margin-bottom: 12px; }
+#seedPickerList .row { text-align: left; }
+.sleep-dialog { background: #181c3a; color: #dfe3ff; }
+#sleepEmoji { font-size: 64px; animation: float 3s ease-in-out infinite; }
+@keyframes float { 0%,100% { transform: translateY(0);} 50% { transform: translateY(-10px);} }
+#sleepInfo { margin: 14px 0; font-size: 15px; line-height: 1.8; }
+#sleepInfo .mult { font-size: 26px; font-weight: 800; color: #9db4ff; }
+#sleepWarnings { min-height: 24px; margin-bottom: 10px; }
+.sleep-warning { color: #ffb3a8; font-weight: 700; font-size: 14px; margin: 4px 0; }
+.sleep-buttons { display: flex; gap: 10px; justify-content: center; }
+
+/* ---- 提示訊息 ---- */
+#toasts { position: fixed; top: 14px; right: 14px; z-index: 99; display: flex; flex-direction: column; gap: 8px; max-width: 320px; }
+.toast {
+  background: #3f3527; color: #fff; padding: 10px 14px; border-radius: 10px;
+  font-size: 14px; font-weight: 600; box-shadow: var(--shadow);
+  animation: slideIn .25s ease;
+}
+.toast.warn { background: #a33d2c; }
+.toast.good { background: var(--green-dark); }
+@keyframes slideIn { from { opacity: 0; transform: translateX(30px);} to { opacity: 1; transform: none;} }
+
+.hidden { display: none !important; }
+
+@media (max-width: 560px) {
+  #farmGrid { grid-template-columns: repeat(3, 1fr); }
+  .plot { min-height: 112px; }
+  .plot .emoji { font-size: 30px; }
+}
