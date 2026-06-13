@@ -7,6 +7,16 @@ const MP = {
   players: [],
   hostSpeed: 1, // 訪客用:房主目前的生長倍率(用來在快照之間平滑推進進度條)
   myName: '玩家',
+  soloBackup: null, // 加入別人房間前,先備份自己的單機進度
+
+  restoreSolo() {
+    if (!this.soloBackup) return;
+    S = Object.assign(defaultState(), JSON.parse(this.soloBackup));
+    this.soloBackup = null;
+    saveGame();
+    render();
+    toast('💾 已還原你自己的農場進度');
+  },
 
   connected() { return !!this.ws && this.ws.readyState === 1 && !!this.code; },
   isGuest() { return this.connected() && !this.isHostFlag; },
@@ -19,8 +29,10 @@ const MP = {
     this.ws.onopen = () => then && then();
     this.ws.onmessage = (ev) => this.onMessage(JSON.parse(ev.data));
     this.ws.onclose = () => {
+      const wasGuest = !!this.code && !this.isHostFlag;
       if (this.code) toast('⚠️ 與伺服器斷線了', 'warn');
       this.code = null; this.isHostFlag = true; this.players = [];
+      if (wasGuest) this.restoreSolo();
       renderCoop();
     };
     this.ws.onerror = () => {};
@@ -37,9 +49,11 @@ const MP = {
     this.open(() => this.send({ t: 'join', code, name }));
   },
   leave() {
+    const wasGuest = !!this.code && !this.isHostFlag;
     this.send({ t: 'leave' });
     this.code = null; this.isHostFlag = true; this.players = [];
     toast('已離開房間');
+    if (wasGuest) this.restoreSolo();
     renderCoop();
   },
 
@@ -59,6 +73,7 @@ const MP = {
         renderCoop();
         break;
       case 'joined':
+        this.soloBackup = JSON.stringify(S); // 收到房主狀態前,先備份自己的進度
         this.code = msg.code; this.isHostFlag = false;
         toast(`🔑 已加入房間 ${msg.code}`, 'good');
         renderCoop();
@@ -89,6 +104,15 @@ const MP = {
         break;
       case 'notify':
         toast(msg.msg);
+        break;
+      case 'stealRequest': // 房主端:有小偷上門
+        hostHandleSteal(msg);
+        break;
+      case 'stealLoot': // 小偷端:收到戰利品
+        onStealLoot(msg.loot, msg.scared);
+        break;
+      case 'stealError':
+        onStealError(msg.msg);
         break;
     }
   },

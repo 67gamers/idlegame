@@ -15,58 +15,69 @@
       <span id="staminaText">100</span>
     </div>
     <div class="stat" title="背包(作物+食物)">🎒 <span id="capText">0/20</span></div>
+    <div class="stat" title="偷菜券">🎟️ <span id="ticketText">0</span></div>
     <div id="buffBar"></div>
   </header>
 
-  <nav id="tabs">
-    <button class="tab active" data-tab="farm">🌱 農場</button>
-    <button class="tab" data-tab="house">🏠 房子</button>
-    <button class="tab" data-tab="shop">🛒 商人</button>
-    <button class="tab" data-tab="craft">🔨 製作</button>
-    <button class="tab" data-tab="coop">👥 聯機</button>
-  </nav>
+  <div id="quickBar">
+    <button id="sceneBtn" class="act">🏠 進屋</button>
+    <button id="sickleBtn" class="act gold hidden">⚒️ 鐮刀採收</button>
+    <button id="coopBtn" class="act">👥 聯機</button>
+    <button id="stealBtn" class="act ninja">🥷 偷菜</button>
+    <button id="outfitBtn" class="act">👕 換裝</button>
+    <button id="rebirthBtn" class="act rebirth">✨ 重生</button>
+    <button id="bgmBtn" class="act ghost-act">🔇 音樂</button>
+  </div>
 
-  <main>
-    <section id="tab-farm" class="panel active">
-      <div id="farmActions"></div>
-      <div id="farmGrid"></div>
-    </section>
+  <canvas id="world" width="256" height="216"></canvas>
+  <p class="hint" id="worldHint">點擊田地播種/採收;點房子進屋(廚房+床);點攤位找商人;點工作台製作道具。</p>
+  <p class="hint" id="moveHint">🎮 電腦:WASD 或方向鍵移動小農夫|手機:使用畫面上的方向按鍵</p>
 
-    <section id="tab-house" class="panel">
-      <div class="house-room">
-        <h2>🍳 廚房</h2>
-        <p class="hint">用採收的作物做飯,吃下後獲得各種效果!</p>
-        <div id="kitchenRecipes"></div>
-        <h3>🍱 我的食物</h3>
-        <div id="foodList"></div>
-      </div>
-      <div class="house-room">
-        <h2>🛏️ 臥室</h2>
-        <p class="hint">睡覺可以恢復體力。睡著後還能選擇「開始掛機」——睡得越久,植物長得越快,但小心植物會腐爛!</p>
-        <button id="bedBtn" class="big-btn">😴 上床睡覺</button>
-      </div>
-    </section>
+  <!-- 手機虛擬方向鍵 -->
+  <div id="dpad" class="hidden">
+    <button class="dpad-btn" data-dir="up" style="grid-area:u">▲</button>
+    <button class="dpad-btn" data-dir="left" style="grid-area:l">◀</button>
+    <button class="dpad-btn" data-dir="right" style="grid-area:r">▶</button>
+    <button class="dpad-btn" data-dir="down" style="grid-area:d">▼</button>
+  </div>
 
-    <section id="tab-shop" class="panel">
-      <h2>🧑‍🌾 旅行商人</h2>
-      <div class="shop-section">
-        <h3>📤 出售作物</h3>
-        <div id="sellList"></div>
-      </div>
-      <div class="shop-section">
-        <h3>📥 購買種子</h3>
-        <div id="seedShop"></div>
-      </div>
-    </section>
+  <div id="toasts"></div>
 
-    <section id="tab-craft" class="panel">
-      <h2>🔨 工作台</h2>
+  <!-- 商人 -->
+  <div id="dlg-shop" class="overlay dlg hidden">
+    <div class="dialog wide">
+      <div class="dlg-head"><h3>🧑‍🌾 旅行商人</h3><button class="close-x" onclick="closeDialogs()">✕</button></div>
+      <h4>📤 出售作物</h4>
+      <div id="sellList"></div>
+      <h4>📥 購買種子</h4>
+      <div id="seedShop"></div>
+    </div>
+  </div>
+
+  <!-- 廚房 -->
+  <div id="dlg-kitchen" class="overlay dlg hidden">
+    <div class="dialog wide">
+      <div class="dlg-head"><h3>🍳 廚房</h3><button class="close-x" onclick="closeDialogs()">✕</button></div>
+      <p class="hint">用採收的作物做飯,吃下後獲得各種效果!</p>
+      <div id="kitchenRecipes"></div>
+      <h4>🍱 我的食物</h4>
+      <div id="foodList"></div>
+    </div>
+  </div>
+
+  <!-- 工作台 -->
+  <div id="dlg-craft" class="overlay dlg hidden">
+    <div class="dialog wide">
+      <div class="dlg-head"><h3>🔨 工作台</h3><button class="close-x" onclick="closeDialogs()">✕</button></div>
       <p class="hint">製作更好的物品,讓種田更輕鬆!</p>
       <div id="craftList"></div>
-    </section>
+    </div>
+  </div>
 
-    <section id="tab-coop" class="panel">
-      <h2>👥 好友聯機</h2>
+  <!-- 聯機 -->
+  <div id="dlg-coop" class="overlay dlg hidden">
+    <div class="dialog wide">
+      <div class="dlg-head"><h3>👥 好友聯機</h3><button class="close-x" onclick="closeDialogs()">✕</button></div>
       <p class="hint">最多 4 人一起種田!農地、金幣、倉庫全部共享。掛機加速以房主為準。</p>
       <div id="coopPanel">
         <div class="coop-row">
@@ -85,12 +96,56 @@
         <div id="playerListBox"></div>
         <button id="leaveRoomBtn" class="big-btn danger">🚪 離開房間</button>
       </div>
-    </section>
-  </main>
+    </div>
+  </div>
 
-  <div id="toasts"></div>
+  <!-- 偷菜 -->
+  <div id="dlg-steal" class="overlay dlg hidden">
+    <div class="dialog wide">
+      <div class="dlg-head"><h3>🥷 偷菜</h3><button class="close-x" onclick="closeDialogs()">✕</button></div>
+      <p class="hint">輸入別人的房號,潛入他的農場偷走最多 3 個成熟作物!對方必須在線上開著房間。每次行動消耗一張偷菜券;若什麼都沒偷到,偷菜券會退還。小心:對方有稻草人時可能被嚇跑(券不退);有看門狗時最多只能偷到 1 個。</p>
+      <div class="row">
+        <span class="icon">🎟️</span>
+        <div class="info"><b>偷菜券 ×<span id="stealTicketCount">0</span></b>
+        <small>正式版將以真錢購買(NT$30/張),目前為免費模擬購買</small></div>
+        <button class="act gold" id="buyTicketBtn">模擬購買</button>
+      </div>
+      <div class="coop-row" style="margin-top:12px">
+        <input id="stealCode" maxlength="4" placeholder="目標房號 (4碼)">
+        <button id="startStealBtn" class="big-btn ninja">🥷 開始偷菜</button>
+      </div>
+    </div>
+  </div>
 
-  <!-- 選種子彈窗 -->
+  <!-- 換裝 -->
+  <div id="dlg-outfit" class="overlay dlg hidden">
+    <div class="dialog wide">
+      <div class="dlg-head"><h3>👕 服裝店</h3><button class="close-x" onclick="closeDialogs()">✕</button></div>
+      <p class="hint">用金幣購買服裝,每套都有不同的效果!穿上後小農夫的外觀也會改變。聯機時服裝是個人的,不會共享。</p>
+      <div id="outfitList"></div>
+    </div>
+  </div>
+
+  <!-- 重生 -->
+  <div id="dlg-rebirth" class="overlay dlg hidden">
+    <div class="dialog wide">
+      <div class="dlg-head"><h3>✨ 重生</h3><button class="close-x" onclick="closeDialogs()">✕</button></div>
+      <p class="hint">花費大量金幣重生,換取一枚重生代幣——<b>全部的金幣和種子都會消失</b>(只留一顆馬鈴薯種子重新出發),但每枚代幣讓你賣作物的收入<b>翻倍</b>,可以不斷疊乘!田地、工具、背包、作物都會保留。</p>
+      <div class="row">
+        <span class="icon">🪙</span>
+        <div class="info"><b>重生代幣 ×<span id="rebirthTokenCount">0</span></b>
+        <small>目前賣作物收入 ×<span id="rebirthMultNow">1</span></small></div>
+      </div>
+      <div class="row">
+        <span class="icon">✨</span>
+        <div class="info"><b>第 <span id="rebirthNth">1</span> 次重生</b>
+        <small>需要 💰<span id="rebirthCostShow">100,000</span>(你有 💰<span id="rebirthCoinsShow">0</span>)<br>重生後收入 ×<span id="rebirthMultNext">2</span></small></div>
+        <button class="big-btn danger" id="doRebirthBtn">✨ 確定重生</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 選種子 -->
   <div id="seedPicker" class="overlay hidden">
     <div class="dialog">
       <h3>選擇要種的種子</h3>
@@ -113,6 +168,7 @@
     </div>
   </div>
 </div>
+<script src="pixel.js"></script>
 <script src="multiplayer.js"></script>
 <script src="game.js"></script>
 </body>
