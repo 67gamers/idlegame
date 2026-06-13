@@ -25,6 +25,7 @@
     <button id="coopBtn" class="act">👥 聯機</button>
     <button id="stealBtn" class="act ninja">🥷 偷菜</button>
     <button id="outfitBtn" class="act">👕 換裝</button>
+    <button id="petBtn" class="act">🐾 寵物</button>
     <button id="rebirthBtn" class="act rebirth">✨ 重生</button>
     <button id="bgmBtn" class="act ghost-act">🔇 音樂</button>
   </div>
@@ -123,6 +124,15 @@
       <div class="dlg-head"><h3>👕 服裝店</h3><button class="close-x" onclick="closeDialogs()">✕</button></div>
       <p class="hint">用金幣購買服裝,每套都有不同的效果!穿上後小農夫的外觀也會改變。聯機時服裝是個人的,不會共享。</p>
       <div id="outfitList"></div>
+    </div>
+  </div>
+
+  <!-- 寵物 -->
+  <div id="dlg-pet" class="overlay dlg hidden">
+    <div class="dialog wide">
+      <div class="dlg-head"><h3>🐾 寵物店</h3><button class="close-x" onclick="closeDialogs()">✕</button></div>
+      <p class="hint">用金幣領養寵物,每隻都有不同的功能!一次帶一隻出門,牠會跟在小農夫身邊一起走。聯機時寵物是個人的。</p>
+      <div id="petList"></div>
     </div>
   </div>
 

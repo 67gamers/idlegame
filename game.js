@@ -14,6 +14,7 @@ const CROPS = {
   pumpkin:    { name: '南瓜',   emoji: '🎃', grow: 780,  fresh: 480, seed: 130, sell: 335, color: '#ff8b1f' },
   grape:      { name: '葡萄',   emoji: '🍇', grow: 900,  fresh: 300, seed: 170, sell: 455, color: '#9a5fd0' },
   pineapple:  { name: '鳳梨',   emoji: '🍍', grow: 1200, fresh: 540, seed: 250, sell: 700, color: '#e8b830' },
+  goldfruit:  { name: '金果實', emoji: '✨', grow: 1800, fresh: 600, seed: 4000, sell: 10000, color: '#ffd700' },
   // ---- 花卉 ----
   sunflower:  { name: '向日葵', emoji: '🌻', grow: 320,  fresh: 400, seed: 40,  sell: 88,  color: '#ffd700', cat: 'flower' },
   tulip:      { name: '鬱金香', emoji: '🌷', grow: 500,  fresh: 300, seed: 70,  sell: 165, color: '#ff5fa0', cat: 'flower' },
@@ -53,15 +54,35 @@ const OUTFITS = {
     desc: '賣作物收入 +25%', colors: { h: '#2c3e50', r: '#34495e', p: '#1d2731' }, fx: { sell: 1.25 } },
 };
 
+// ---- 寵物:金幣購買,一次帶一隻出門(會跟著小農夫走),各有不同效果 ----
+//  col=世界裡的身體色, ear=耳/角色
+const PETS = {
+  cat:     { name: '貓咪',   emoji: '🐱', cost: 12000,  desc: '賣作物收入 +15%',
+    fx: { sell: 1.15 }, col: '#9aa6ad', ear: '#7d878d' },
+  chicken: { name: '母雞',   emoji: '🐔', cost: 25000,  desc: '採收時 35% 機率多收 1 個',
+    fx: { harvestBonus: 0.35 }, col: '#f5efe0', ear: '#ff5a2c' },
+  rabbit:  { name: '兔子',   emoji: '🐰', cost: 45000,  desc: '作物生長速度 +12%',
+    fx: { grow: 1.12 }, col: '#f0f0f0', ear: '#ffb6c8' },
+  bee:     { name: '蜜蜂',   emoji: '🐝', cost: 70000,  desc: '花卉售價 +40%',
+    fx: { flowerSell: 1.4 }, col: '#ffce3a', ear: '#3a2a1a' },
+  pig:     { name: '小豬',   emoji: '🐷', cost: 100000, desc: '每 30 秒自動撿到金幣',
+    fx: { passiveCoin: true }, col: '#ff9fc0', ear: '#f47faa' },
+  owl:     { name: '貓頭鷹', emoji: '🦉', cost: 150000, desc: '掛機時生長加速更快、上限更高',
+    fx: { idleBoost: true }, col: '#9a7448', ear: '#c89a5a' },
+  dragon:  { name: '小龍',   emoji: '🐲', cost: 300000, desc: '生長 +15% 且 賣作物收入 +15%',
+    fx: { grow: 1.15, sell: 1.15 }, col: '#54b55a', ear: '#2e7d32' },
+};
+
 // ---- 製作 ----
 const BACKPACK_LEVELS = [
   { cost: 100, wheat: 0,  cap: 40,  label: '小背包' },
   { cost: 300, wheat: 5,  cap: 70,  label: '大背包' },
   { cost: 800, wheat: 15, cap: 120, label: '冒險家背包' },
 ];
-const PLOT_COUNT = 20;
+const PLOT_COUNT = 30;
 const PLOT_COSTS = [0, 0, 0, 0, 50, 100, 200, 350, 550, 800, 1200, 1700,
-  2400, 3200, 4200, 5500, 7000, 9000, 12000, 15000];
+  2400, 3200, 4200, 5500, 7000, 9000, 12000, 15000,
+  19000, 24000, 30000, 38000, 48000, 60000, 75000, 95000, 120000, 150000];
 const STAMINA_COST = { plant: 3, harvest: 2, clear: 2, cook: 5, sickle: 5 };
 
 // ================= 狀態 =================
@@ -77,6 +98,10 @@ function defaultState() {
     rebirthTokens: 0,
     outfit: 'default',
     outfitsOwned: ['default'],
+    pets: [],          // 出門中的寵物 id(最多 MAX_ACTIVE_PETS 隻)
+    petsOwned: [],     // 已領養的寵物 id
+    petLevels: {},     // id -> 等級(1~5)
+    petExp: {},        // id -> 目前等級的親密度進度
     tools: { sickle: false, watering: false, scarecrow: false, watchdog: false },
     buffs: [],
     plots: Array.from({ length: PLOT_COUNT }, (_, i) => ({
@@ -119,6 +144,13 @@ function buffMult(type) {
 function idleMult() {
   if (!sleep.idle) return 1;
   const sec = (Date.now() - sleep.start) / 1000;
+  // 貓頭鷹:等級越高,加速越快、上限越高
+  const owlLv = petFx('idleBoost', 0); // 0=無, 1~5=貓頭鷹等級
+  if (owlLv) {
+    const cap = 10 + owlLv;                    // Lv1→11 … Lv5→15
+    const per = Math.max(12, 22 - owlLv * 2);  // Lv1→20秒/級 … Lv5→12秒/級
+    return Math.min(cap, 3 + Math.floor(sec / per));
+  }
   return Math.min(10, 2 + Math.floor(sec / 30));
 }
 // 目前穿著的服裝效果(key 不存在時回傳預設值)
@@ -130,9 +162,43 @@ function outfitColors() {
   const o = OUTFITS[S.outfit];
   return o ? o.colors : null;
 }
+// ---- 寵物等級 / 出戰 ----
+const MAX_ACTIVE_PETS = 3;   // 一次最多帶幾隻出門
+const PET_MAX_LVL = 5;
+const PET_FEED_GAIN = 25;     // 每餵一次增加的親密度
+const lvlUpCost = (lv) => 75 + lv * 50; // 升到下一級所需親密度
+function activePets() { return (S.pets || []).filter(id => PETS[id]); }
+function petLevel(id) { return (S.petLevels && S.petLevels[id]) || 1; }
+function petLvlFactor(id) { return 1 + (petLevel(id) - 1) * 0.25; } // Lv1=1.0 … Lv5=2.0
+
+// 各效果的聚合方式
+const PET_FX_KIND = { grow: 'mult', sell: 'mult', flowerSell: 'mult', harvestBonus: 'add', passiveCoin: 'bool', idleBoost: 'max' };
+// 聚合所有出門寵物的某種效果(隨各自等級放大)
+function petFx(key, def) {
+  const kind = PET_FX_KIND[key];
+  let acc = kind === 'mult' ? 1 : (kind === 'add' ? 0 : (kind === 'bool' ? false : 0));
+  let found = false;
+  for (const id of activePets()) {
+    const v = PETS[id].fx[key];
+    if (v === undefined) continue;
+    found = true;
+    const lf = petLvlFactor(id);
+    if (kind === 'mult') acc *= 1 + (v - 1) * lf;
+    else if (kind === 'add') acc += v * lf;
+    else if (kind === 'bool') acc = true;
+    else if (kind === 'max') acc = Math.max(acc, petLevel(id));
+  }
+  return found ? acc : def;
+}
 function speedMult() {
   if (MP.isGuest()) return MP.hostSpeed;
-  return (S.tools.watering ? 1.2 : 1) * buffMult('grow') * idleMult() * outfitFx('grow', 1);
+  return (S.tools.watering ? 1.2 : 1) * buffMult('grow') * idleMult() * outfitFx('grow', 1) * petFx('grow', 1);
+}
+// 某作物的最終售價倍率(含 buff/重生/服裝/寵物;蜜蜂另加花卉加成)
+function cropSellMult(key) {
+  let m = buffMult('sell') * rebirthMult() * outfitFx('sell', 1) * petFx('sell', 1);
+  if (CROPS[key] && CROPS[key].cat === 'flower') m *= petFx('flowerSell', 1);
+  return m;
 }
 function bagUsed() {
   let n = 0;
@@ -203,7 +269,7 @@ function execAction(a, local) {
       if (bagRoom() < 1) { if (local) toast('🎒 背包滿了!先去賣掉一些作物吧', 'warn'); return; }
       if (local && !spendStamina(cost)) return;
       const c = CROPS[p.crop];
-      const got = Math.min(bagRoom(), 2 + (Math.random() < 0.15 ? 1 : 0));
+      const got = Math.min(bagRoom(), 2 + (Math.random() < 0.15 ? 1 : 0) + (Math.random() < petFx('harvestBonus', 0) ? 1 : 0));
       S.crops[p.crop] = (S.crops[p.crop] || 0) + got;
       toast(`${c.emoji} ${who}採收了 ${c.name} ×${got}`, 'good');
       Object.assign(p, { crop: null, progress: 0, warned: false, rotNotified: false });
@@ -215,7 +281,7 @@ function execAction(a, local) {
       let total = 0;
       for (const p of S.plots) {
         if (plotStage(p) !== 'mature' || bagRoom() < 1) continue;
-        const got = Math.min(bagRoom(), 2 + (Math.random() < 0.15 ? 1 : 0));
+        const got = Math.min(bagRoom(), 2 + (Math.random() < 0.15 ? 1 : 0) + (Math.random() < petFx('harvestBonus', 0) ? 1 : 0));
         S.crops[p.crop] = (S.crops[p.crop] || 0) + got;
         total += got;
         Object.assign(p, { crop: null, progress: 0, warned: false, rotNotified: false });
@@ -255,7 +321,7 @@ function execAction(a, local) {
       const have = S.crops[a.crop] || 0;
       const n = Math.min(a.n === 'all' ? have : (a.n || 1), have);
       if (!c || n < 1) return;
-      const gain = Math.floor(c.sell * n * buffMult('sell') * rebirthMult() * outfitFx('sell', 1));
+      const gain = Math.floor(c.sell * n * cropSellMult(a.crop));
       S.crops[a.crop] -= n;
       if (S.crops[a.crop] <= 0) delete S.crops[a.crop];
       S.coins += gain;
@@ -353,6 +419,7 @@ function execAction(a, local) {
 
 // ================= 聯機快照 =================
 const SYNC_KEYS = ['coins', 'seeds', 'crops', 'foods', 'capacity', 'backpackLv', 'tools', 'buffs', 'plots', 'rebirthTokens'];
+// 註:服裝/寵物是個人的,不放進共享快照(各玩家自己的裝扮)
 function makeSnapshot() {
   const s = { hostSpeed: speedMult() };
   for (const k of SYNC_KEYS) s[k] = S[k];
@@ -448,6 +515,7 @@ function hostHandleSteal(msg) {
 
 // ================= 遊戲主迴圈 =================
 let lastTick = Date.now();
+let petCoinTimer = 0;
 function tick() {
   const now = Date.now();
   // 不設上限:瀏覽器在背景分頁會節流計時器,回到前景時要補回真實流逝的時間,掛機才有效
@@ -458,6 +526,19 @@ function tick() {
 
   const regen = (sleep.active ? 2.5 : 0.12) * outfitFx('regen', 1);
   S.stamina = Math.min(S.maxStamina, S.stamina + regen * dt);
+
+  // 小豬:每 30 秒自動撿到金幣(房主/單機才計算)
+  if (!MP.isGuest() && petFx('passiveCoin', false)) {
+    petCoinTimer += dt;
+    if (petCoinTimer >= 30) {
+      const times = Math.min(8, Math.floor(petCoinTimer / 30)); // 背景補時間時最多一次補 8 回
+      petCoinTimer -= times * 30;
+      const found = times * Math.floor(120 * petLvlFactor('pig') * rebirthMult());
+      S.coins += found;
+      toast(`🐷 小豬幫你撿到了 ${found} 金幣!`, 'good');
+      saveGame();
+    }
+  }
 
   const mult = speedMult();
   for (const p of S.plots) {
@@ -493,13 +574,18 @@ const L = LAYOUT;
 let scene = 'farm'; // 'farm' | 'house'
 let openDlg = null;
 
+// 農場(室外)比室內高,做成可往下捲動的大地圖;室內維持原本大小
+const FARM_H = 286;
+function worldH() { return scene === 'house' ? L.world.h : FARM_H; }
+
 // 以螢幕原生解析度(含 Retina)繪製,文字才不會糊
 function fitCanvas() {
   const dpr = window.devicePixelRatio || 1;
   const w = Math.max(1, Math.round((cv.clientWidth || 768) * dpr));
-  if (w === cv.width) return;
+  const h = Math.round(w * worldH() / L.world.w);
+  if (w === cv.width && h === cv.height) return;
   cv.width = w;
-  cv.height = Math.round(w * L.world.h / L.world.w);
+  cv.height = h;
   PX.S = cv.width / L.world.w;
   grassKey = ''; // 背景快取作廢
 }
@@ -513,7 +599,7 @@ function drawGrassCached() {
     grassCache = document.createElement('canvas');
     grassCache.width = cv.width;
     grassCache.height = cv.height;
-    PX.grass(grassCache.getContext('2d'), L.world.w, L.world.h);
+    PX.grass(grassCache.getContext('2d'), L.world.w, worldH());
     grassKey = key;
   }
   ctx.drawImage(grassCache, 0, 0);
@@ -532,8 +618,26 @@ function dayInfo() {
 
 // ---- 小農夫:在地圖上走動,點哪裡就走去哪裡 ----
 const farmer = { x: 128, y: 130, tx: 128, ty: 130, face: 1, frame: 0, frameT: 0, wanderT: 2 };
+const petPositions = {}; // id -> {x,y,frame,frameT,face}
+function updatePet(dt) {
+  const active = S.pets || [];
+  active.forEach((id, idx) => {
+    if (!petPositions[id]) petPositions[id] = { x: farmer.x, y: farmer.y, frame: 0, frameT: 0, face: 1 };
+    const pp = petPositions[id];
+    const off = (idx + 1) * 11; // 排成一列跟在農夫身後
+    const tx = farmer.x + farmer.face * off, ty = farmer.y + 3 + (idx % 2) * 3;
+    const dx = tx - pp.x, dy = ty - pp.y, d = Math.hypot(dx, dy);
+    if (d > 2) {
+      pp.x += dx / d * Math.min(d, 62 * dt);
+      pp.y += dy / d * Math.min(d, 62 * dt);
+      if (Math.abs(dx) > 1) pp.face = dx < 0 ? -1 : 1;
+      pp.frameT += dt;
+      if (pp.frameT > 0.16) { pp.frame ^= 1; pp.frameT = 0; }
+    } else pp.frame = 0;
+  });
+}
 const WALK_AREA = {
-  farm:  { x1: 10, y1: 68, x2: 246, y2: 204 },
+  farm:  { x1: 10, y1: 68, x2: 246, y2: 282 },
   house: { x1: 16, y1: 96, x2: 238, y2: 172 },
 };
 // ---- 手動操控:電腦 WASD/方向鍵,手機虛擬按鍵 ----
@@ -614,6 +718,15 @@ function drawWorld() {
   const day = dayInfo();
   if (scene === 'farm') {
     drawGrassCached();
+    // 環境裝飾:樹木與灌木(框住場景,不碰農田)
+    const sway1 = Math.round(Math.sin(windT * 1.1));
+    const sway2 = Math.round(Math.sin(windT * 1.1 + 1.7));
+    PX.tree(ctx, 74, 6, sway1);
+    PX.tree(ctx, 238, 28, sway2);
+    PX.bush(ctx, 0, 96);
+    PX.bush(ctx, 0, 156);
+    PX.bush(ctx, 0, 216);
+    PX.bush(ctx, 0, 262);
     PX.house(ctx, L.house);
     PX.bench(ctx, L.bench);
     PX.stall(ctx, L.stall);
@@ -642,20 +755,80 @@ function drawWorld() {
         PX.label(ctx, '清理', r.x + r.w / 2, r.y + 2, '#ddd', 9);
       }
     });
+    for (const id of (S.pets || [])) { const pp = petPositions[id]; if (pp) PX.pet(ctx, pp.x - 4, pp.y - 7, id, petColors(id), pp.face, 1, pp.frame); }
     PX.farmer(ctx, farmer.x - 6, farmer.y - 15, farmer.frame, farmer.face, 1, outfitColors());
-    PX.nightTint(ctx, L.world.w, L.world.h, day.dark, day.glow);
-    if (day.dark > 0.6) PX.stars(ctx, L.world.w);
+    // 白天小鳥飛過天空
+    if (bird) PX.bird(ctx, bird.x, bird.y, Math.floor(windT * 6) % 2 === 0);
+    // 白天蝴蝶 / 夜裡螢火蟲
+    if (day.dark < 0.5) {
+      for (const b of butterflies) PX.butterfly(ctx, b.x, b.y, b.wing, b.color);
+    }
+    PX.nightTint(ctx, L.world.w, worldH(), day.dark, day.glow);
+    if (day.dark > 0.6) {
+      PX.stars(ctx, L.world.w);
+      for (const f of fireflies) PX.firefly(ctx, f.x, f.y, Math.floor(windT * 2 + f.t) % 2 === 0);
+    }
     if (day.dark > 0.5) PX.houseGlow(ctx, L.house); // 夜裡窗戶亮燈(畫在夜色之上才會發光)
     PX.sunMoon(ctx, 240, 6, day.phase);
   } else {
-    PX.indoor(ctx, L);
+    PX.indoor(ctx, L, day);
     PX.label(ctx, '廚房', L.stove.x + L.stove.w / 2, L.stove.y + L.stove.h + 3, '#5d4a2f', 9);
     PX.label(ctx, '床', L.bed.x + L.bed.w / 2, L.bed.y + L.bed.h + 5, '#5d4a2f', 9);
     PX.label(ctx, '出去', L.door.x + L.door.w / 2, L.door.y + L.door.h + 1, '#5d4a2f', 9);
     // 在家裡時農夫比較大隻(近景)
+    for (const id of (S.pets || [])) { const pp = petPositions[id]; if (pp) PX.pet(ctx, pp.x - 8, pp.y - 14, id, petColors(id), pp.face, 2, pp.frame); }
     PX.farmer(ctx, farmer.x - 12, farmer.y - 30, farmer.frame, farmer.face, 2, outfitColors());
     // 夜裡屋內微暗,有種點著油燈的氣氛
-    PX.nightTint(ctx, L.world.w, L.world.h, day.dark * 0.35, 0);
+    PX.nightTint(ctx, L.world.w, worldH(), day.dark * 0.35, 0);
+  }
+}
+
+// ---- 環境氛圍:風、蝴蝶、小鳥、螢火蟲 ----
+let windT = 0;
+const FARM_BOUND = { x1: 6, y1: 70, x2: 250, y2: 282 };
+const butterflies = Array.from({ length: 3 }, (_, i) => ({
+  x: 50 + i * 70, y: 96 + i * 28, ang: Math.random() * 6.28, t: Math.random() * 9,
+  wing: 0, wingT: 0, color: ['#ff8fc0', '#ffd23f', '#a9deff'][i],
+}));
+const fireflies = Array.from({ length: 7 }, (_, i) => ({
+  x: 20 + i * 32, y: 80 + (i * 53) % 110, ang: Math.random() * 6.28, t: Math.random() * 6,
+}));
+let bird = null, birdTimer = 5;
+
+function updateAmbient(dt) {
+  windT += dt;
+  // 蝴蝶:緩緩飄移轉向 + 拍翅
+  for (const b of butterflies) {
+    b.t += dt;
+    b.ang += Math.sin(b.t * 1.3) * dt * 2.2;
+    b.x += Math.cos(b.ang) * 17 * dt;
+    b.y += Math.sin(b.ang) * 9 * dt + Math.sin(b.t * 5) * 4 * dt;
+    if (b.x < FARM_BOUND.x1) b.x = FARM_BOUND.x2; else if (b.x > FARM_BOUND.x2) b.x = FARM_BOUND.x1;
+    if (b.y < FARM_BOUND.y1) b.y = FARM_BOUND.y1 + 2; else if (b.y > FARM_BOUND.y2) b.y = FARM_BOUND.y2 - 2;
+    b.wingT += dt; if (b.wingT > 0.12) { b.wing ^= 1; b.wingT = 0; }
+  }
+  // 螢火蟲:夜裡飄動
+  for (const f of fireflies) {
+    f.t += dt;
+    f.ang += Math.sin(f.t) * dt * 2;
+    f.x += Math.cos(f.ang) * 8 * dt;
+    f.y += Math.sin(f.ang * 1.3) * 6 * dt;
+    if (f.x < FARM_BOUND.x1) f.x = FARM_BOUND.x2; else if (f.x > FARM_BOUND.x2) f.x = FARM_BOUND.x1;
+    if (f.y < 74) f.y = 74; else if (f.y > FARM_BOUND.y2) f.y = FARM_BOUND.y2;
+  }
+  // 小鳥:白天偶爾飛過天空
+  if (bird) {
+    bird.t += dt;
+    bird.x += bird.dir * 42 * dt;
+    bird.y += Math.sin(bird.t * 2) * 5 * dt;
+    if (bird.x < -12 || bird.x > 268) bird = null;
+  } else if (dayInfo().dark < 0.4) {
+    birdTimer -= dt;
+    if (birdTimer <= 0) {
+      birdTimer = 9 + Math.random() * 12;
+      const dir = Math.random() < 0.5 ? 1 : -1;
+      bird = { x: dir > 0 ? -10 : 266, y: 14 + Math.random() * 22, dir, t: 0 };
+    }
   }
 }
 
@@ -665,6 +838,8 @@ function frameLoop(now) {
   const fdt = Math.min(0.1, (now - lastFrameT) / 1000);
   lastFrameT = now;
   updateFarmer(fdt);
+  updatePet(fdt);
+  updateAmbient(fdt);
   drawWorld();
   requestAnimationFrame(frameLoop);
 }
@@ -674,7 +849,7 @@ const hit = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.
 cv.addEventListener('click', (e) => {
   const rect = cv.getBoundingClientRect();
   const x = (e.clientX - rect.left) * L.world.w / rect.width;
-  const y = (e.clientY - rect.top) * L.world.h / rect.height;
+  const y = (e.clientY - rect.top) * worldH() / rect.height;
   sendFarmerTo(x, y); // 小農夫走向你點的地方
   if (scene === 'farm') {
     if (hit(L.house, x, y)) { setScene('house'); return; }
@@ -737,6 +912,103 @@ function renderOpenDialog() {
   else if (openDlg === 'steal') renderSteal();
   else if (openDlg === 'rebirth') renderRebirth();
   else if (openDlg === 'outfit') renderOutfit();
+  else if (openDlg === 'pet') renderPet();
+}
+
+// ---- 寵物 ----
+function petColors(id) {
+  const p = PETS[id];
+  return { b: p.col, e: p.ear, k: '#2b2b2b', d: '#5e4a33', o: '#33291e', w: '#fffdf5' };
+}
+// 顯示某隻寵物在指定等級時的效果文字
+function petDescAt(id, lv) {
+  const fx = PETS[id].fx, lf = 1 + (lv - 1) * 0.25;
+  const pct = (v) => Math.round((v - 1) * lf * 100);
+  if (fx.grow && fx.sell) return `生長 +${pct(fx.grow)}% 且 賣作物收入 +${pct(fx.sell)}%`;
+  if (fx.sell) return `賣作物收入 +${pct(fx.sell)}%`;
+  if (fx.grow) return `作物生長速度 +${pct(fx.grow)}%`;
+  if (fx.flowerSell) return `花卉售價 +${pct(fx.flowerSell)}%`;
+  if (fx.harvestBonus) return `採收時 ${Math.round(fx.harvestBonus * lf * 100)}% 機率多收 1 個`;
+  if (fx.passiveCoin) return `每 30 秒自動撿到金幣(約 ${Math.floor(120 * lf)}×重生倍率)`;
+  if (fx.idleBoost) return `掛機加速上限 ×${10 + lv}、間隔更短`;
+  return PETS[id].desc;
+}
+function buyPet(id) {
+  const p = PETS[id];
+  if (!p) return;
+  S.pets = S.pets || [];
+  if (S.pets.includes(id)) { // 出門中 → 送回家
+    S.pets = S.pets.filter(x => x !== id);
+    toast(`${p.emoji} ${p.name}回家休息了`, 'good');
+    saveGame(); renderPet(); renderTop(); return;
+  }
+  if (!S.petsOwned.includes(id)) { // 尚未擁有 → 領養
+    if (S.coins < p.cost) return toast(`金幣不夠!${p.name}需要 💰${p.cost.toLocaleString()}`, 'warn');
+    if (MP.isGuest()) MP.sendAction({ type: 'spend', amount: p.cost, what: p.name, by: MP.myName });
+    else { S.coins -= p.cost; MP.broadcastState(); }
+    S.petsOwned.push(id);
+    (S.petLevels = S.petLevels || {})[id] = 1;
+    (S.petExp = S.petExp || {})[id] = 0;
+    toast(`${p.emoji} 領養了${p.name}!`, 'good');
+  }
+  if (S.pets.length >= MAX_ACTIVE_PETS) { // 出戰滿了
+    toast(`出戰寵物已滿(最多 ${MAX_ACTIVE_PETS} 隻),先送一隻回家`, 'warn');
+    saveGame(); renderPet(); renderTop(); return;
+  }
+  S.pets.push(id);
+  toast(`${p.emoji} ${p.name}跟你出門了!`, 'good');
+  saveGame(); renderPet(); renderTop();
+}
+function feedPet(id) {
+  if (!S.petsOwned.includes(id)) return;
+  if (petLevel(id) >= PET_MAX_LVL) return toast(`${PETS[id].name}已經是最高等級了!`, 'warn');
+  const foodKeys = Object.keys(S.foods).filter(k => S.foods[k] > 0);
+  if (!foodKeys.length) return toast('沒有食物可以餵!先去廚房做點料理吧', 'warn');
+  const fk = foodKeys[0];
+  S.foods[fk]--; if (S.foods[fk] <= 0) delete S.foods[fk];
+  S.petExp = S.petExp || {};
+  S.petExp[id] = (S.petExp[id] || 0) + PET_FEED_GAIN;
+  let leveled = false;
+  while (petLevel(id) < PET_MAX_LVL && S.petExp[id] >= lvlUpCost(petLevel(id))) {
+    S.petExp[id] -= lvlUpCost(petLevel(id));
+    S.petLevels[id] = petLevel(id) + 1;
+    leveled = true;
+  }
+  toast(leveled ? `🎉 ${PETS[id].emoji} ${PETS[id].name} 升到 Lv.${petLevel(id)},效果更強了!`
+                : `🍖 餵食了${PETS[id].name}(${RECIPES[fk].name}),親密度提升`, 'good');
+  saveGame(); renderPet(); renderTop();
+}
+function renderPet() {
+  const slotInfo = `<p class="hint">🎒 出戰中 ${(S.pets || []).length} / ${MAX_ACTIVE_PETS} 隻。餵食(消耗 1 個料理)可提升等級,效果更強!</p>`;
+  $('petList').innerHTML = slotInfo + Object.entries(PETS).map(([id, p]) => {
+    const owned = S.petsOwned.includes(id);
+    const active = (S.pets || []).includes(id);
+    const lv = petLevel(id);
+    const tag = active ? '(出門中)' : owned ? '(已擁有)' : '';
+    const lvTag = owned ? ` <span class="pet-lv">Lv.${lv}</span>` : '';
+    let actBtn, feedBtn = '';
+    if (!owned) actBtn = `<button class="act gold" ${S.coins >= p.cost ? '' : 'disabled'} onclick="buyPet('${id}')">💰${p.cost.toLocaleString()} 領養</button>`;
+    else {
+      actBtn = `<button class="act" onclick="buyPet('${id}')">${active ? '送回家' : '帶出門'}</button>`;
+      feedBtn = lv >= PET_MAX_LVL ? `<button class="act" disabled>滿級</button>`
+        : `<button class="act gold" onclick="feedPet('${id}')">🍖 餵食</button>`;
+    }
+    const exp = owned && lv < PET_MAX_LVL
+      ? `<div class="pet-exp"><div style="width:${Math.round(100 * (S.petExp[id] || 0) / lvlUpCost(lv))}%"></div></div>` : '';
+    return `<div class="row${active ? ' wearing' : ''}">
+      <canvas class="pet-prev" data-pid="${id}" width="40" height="40"></canvas>
+      <div class="info"><b>${p.emoji} ${p.name}${lvTag} ${tag}</b>
+      <small>${petDescAt(id, owned ? lv : 1)}</small>${exp}</div>
+      <div class="pet-btns">${feedBtn}${actBtn}</div></div>`;
+  }).join('');
+  const savedScale = PX.S;
+  PX.S = 1;
+  document.querySelectorAll('.pet-prev').forEach(c => {
+    const pctx = c.getContext('2d');
+    pctx.clearRect(0, 0, c.width, c.height);
+    PX.pet(pctx, 4, 2, c.dataset.pid, petColors(c.dataset.pid), 1, 4, 0);
+  });
+  PX.S = savedScale;
 }
 
 // ---- 服裝 ----
@@ -856,13 +1128,13 @@ function renderKitchen() {
 
 // ---- 商店 ----
 function renderShop() {
-  const sellMult = buffMult('sell') * rebirthMult() * outfitFx('sell', 1);
   const crops = Object.entries(S.crops).filter(([, n]) => n > 0);
   $('sellList').innerHTML = crops.length ? crops.map(([k, n]) => {
     const c = CROPS[k];
-    const price = Math.floor(c.sell * sellMult);
+    const m = cropSellMult(k);
+    const price = Math.floor(c.sell * m);
     return `<div class="row"><span class="icon">${c.emoji}</span>
-      <div class="info"><b>${c.name} ×${n}</b><small>單價 💰${price}${sellMult > 1 ? '(加成中!)' : ''}</small></div>
+      <div class="info"><b>${c.name} ×${n}</b><small>單價 💰${price}${m > 1 ? '(加成中!)' : ''}</small></div>
       <button class="act" onclick="doAction({type:'sellCrop',crop:'${k}',n:1})">賣 1 個</button>
       <button class="act gold" onclick="doAction({type:'sellCrop',crop:'${k}',n:'all'})">全部賣出</button></div>`;
   }).join('') : `<p class="hint">背包裡沒有作物。去田裡採收一些吧!</p>`;
@@ -981,22 +1253,31 @@ function renderSleep() {
 
 // ================= 存檔 =================
 const SAVE_KEY = 'farm-idle-save';
+// 把一份存檔物件套用到目前狀態 S(含欄位補齊)
+function applySave(d) {
+  const base = defaultState();
+  S = Object.assign(base, d || {});
+  if (!Array.isArray(S.plots)) S.plots = base.plots;
+  while (S.plots.length < PLOT_COUNT) {
+    S.plots.push({ unlocked: false, crop: null, progress: 0, warned: false, rotNotified: false });
+  }
+  S.plots = S.plots.slice(0, PLOT_COUNT);
+  // 相容舊存檔:單隻 pet → pets 陣列;補齊等級欄位
+  if (S.pet !== undefined) { if (!Array.isArray(S.pets)) S.pets = S.pet ? [S.pet] : []; delete S.pet; }
+  if (!Array.isArray(S.pets)) S.pets = [];
+  if (!S.petLevels) S.petLevels = {};
+  if (!S.petExp) S.petExp = {};
+  for (const id of S.petsOwned || []) if (!S.petLevels[id]) S.petLevels[id] = 1;
+}
 function saveGame() {
   if (MP.isGuest()) return;
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch {}
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch {} // 存在瀏覽器本機
 }
 function loadGame() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return false;
-    const d = JSON.parse(raw);
-    const base = defaultState();
-    S = Object.assign(base, d);
-    if (!Array.isArray(S.plots)) S.plots = base.plots;
-    while (S.plots.length < PLOT_COUNT) {
-      S.plots.push({ unlocked: false, crop: null, progress: 0, warned: false, rotNotified: false });
-    }
-    S.plots = S.plots.slice(0, PLOT_COUNT);
+    applySave(JSON.parse(raw));
     return true;
   } catch { return false; }
 }
@@ -1010,6 +1291,7 @@ $('coopBtn').addEventListener('click', () => openDialog('coop'));
 $('stealBtn').addEventListener('click', () => openDialog('steal'));
 $('rebirthBtn').addEventListener('click', () => openDialog('rebirth'));
 $('outfitBtn').addEventListener('click', () => openDialog('outfit'));
+$('petBtn').addEventListener('click', () => openDialog('pet'));
 
 // ---- 背景音樂:morning-mood,循環播放 ----
 const bgm = new Audio('bgm.m4a');
@@ -1083,8 +1365,8 @@ document.querySelectorAll('.dpad-btn').forEach(btn => {
   btn.addEventListener('contextmenu', (e) => e.preventDefault());
 });
 
-// ================= 啟動 =================
-const hasSave = loadGame();
+// ================= 啟動(直接用本機存檔,不需登入) =================
+const hadSave = loadGame();
 setScene('farm');
 render();
-if (!hasSave) toast('🥔 歡迎來到悠閒農場!你有一顆馬鈴薯種子,點擊棕色田地把它種下吧!', 'good');
+if (!hadSave) toast('🥔 歡迎來到悠閒農場!你有一顆馬鈴薯種子,點擊棕色田地把它種下吧!', 'good');

@@ -84,6 +84,11 @@ button.ghost-act:hover { background: #6f6250; }
 .seed-cat { margin: 14px 0 8px; color: #6b5b43; }
 .row.wearing { border-color: var(--green); background: #eaf6e2; }
 .outfit-prev { width: 48px; height: 64px; image-rendering: pixelated; flex-shrink: 0; }
+.pet-prev { width: 40px; height: 40px; image-rendering: pixelated; flex-shrink: 0; }
+.pet-lv { background: var(--gold); color: #fff; border-radius: 4px; padding: 0 5px; font-size: 12px; }
+.pet-exp { height: 5px; background: #e4d9c3; border: 1px solid #b8945c; border-radius: 3px; margin-top: 4px; overflow: hidden; }
+.pet-exp > div { height: 100%; background: linear-gradient(90deg, #f5c542, #7ec850); }
+.pet-btns { display: flex; flex-direction: column; gap: 5px; }
 
 /* ---- 對話框 ---- */
 .overlay {
